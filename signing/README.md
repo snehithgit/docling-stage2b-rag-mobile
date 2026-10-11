@@ -25,3 +25,7 @@ Push and pull-request builds still compile and run tests, but **no APK artifact 
 ### APK versioning
 
 Each GitHub Actions workflow run automatically sets a higher `versionCode`, so newer builds can be installed as Android upgrades without losing the saved corpus or model settings. Installing an older APK over a newer one is blocked by Android's downgrade protection.
+
+### Optional: migrate an existing debug install without uploading the huge ZIP again
+
+If you have a computer with `adb` and USB debugging enabled, the optional `scripts/migrate-old-debug-install.sh` script backs up `files/` and `shared_prefs/` with Android's `run-as` (the old app is a debug build), validates the backup tar, asks for an explicit confirmation before uninstalling, installs the new permanently-signed APK and restores the archived state. **Back up your original ZIP outside the app regardless.** This optional script is untested on your device and can require sufficient free computer storage. Android Keystore material is not portable across uninstall, so any cloud API keys may need to be entered once again. After this migration, ordinary upgrades don't require the script.
