@@ -19,6 +19,16 @@ rows = [
         "Example-only: switch S2 indicates motor ready state. Voltage example is 24 V DC."
     ])
 ]
+# Approved synthetic diagram matching Stage 2C visual_evidence_index.jsonl.
+visual_row = {
+    "schema": "docling-rag-visual-index/v1", "evidence_kind": "visual",
+    "postprocess_job_id": 42, "source_filename": book,
+    "chunk_id": "V-42-000000", "picture_index": 0,
+    "page_numbers": [1], "doc_items": ["#/pictures/0"],
+    "rag_eligible": True, "category": "wiring_diagram",
+    "artifact": "artifacts/image_000000.png",
+    "text": "wiring diagram: Fuse F1 protects the contactor supply. Arrow indicates DC polarity."
+}
 # Minimal valid two-page PDF generated without third-party libs.
 def make_pdf():
     objects = []
@@ -45,9 +55,15 @@ with tempfile.TemporaryDirectory() as td:
     dbpath=Path(td)/"jobs.db"; connection=sqlite3.connect(dbpath);connection.execute("CREATE TABLE placeholder(id INTEGER)");connection.close()
     converted=io.BytesIO()
     with zipfile.ZipFile(converted,"w",zipfile.ZIP_DEFLATED) as z:
-        z.writestr("example_docling.json",json.dumps({"texts":[{"text":"Example"}],"pictures":[]}))
+        z.writestr("example_docling.json",json.dumps({"texts":[{"text":"Example"}],
+            "pictures":[{"image":{"uri":"artifacts/image_000000.png","mimetype":"image/png"},
+                         "prov":[{"page_no":1}]}]}))
+        import base64
+        z.writestr("artifacts/image_000000.png",base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/0aIAAAAASUVORK5CYII="))
     with zipfile.ZipFile(args.output,"w",zipfile.ZIP_DEFLATED) as z:
         z.writestr(folder+"retrieval_index.jsonl","\n".join(json.dumps(x) for x in rows)+"\n")
+        z.writestr(folder+"visual_evidence_index.jsonl",json.dumps(visual_row)+"\n")
         z.writestr(folder+"source_manifest.json",json.dumps({"source_filename":book,"converted_zip":"Example_Crane_converted.zip"}))
         z.writestr("input/"+book, make_pdf())
         z.writestr("output/Example_Crane_converted.zip",converted.getvalue())
