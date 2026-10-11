@@ -1,4 +1,4 @@
-name: ShipRAG Android — build and test
+name: ShipRAG Android — tested, permanently signed updates
 
 on:
   push:
@@ -39,13 +39,61 @@ jobs:
         run: |
           python3 scripts/generate_fixture.py /tmp/shiprag-smoke-test.zip
           python3 scripts/smoke_check.py /tmp/shiprag-smoke-test.zip
+      # One permanent signing certificate, encrypted in git using a strong
+      # passphrase stored ONLY in the repository Actions secret.
+      # Never upload an ephemeral GitHub runner debug-signed APK for installation.
+      - name: Restore permanent ShipRAG signing certificate
+        id: permanent_signing
+        if: github.event_name != 'pull_request'
+        env:
+          SHIPRAG_SIGNING_PASSPHRASE: ${{ secrets.SHIPRAG_SIGNING_PASSPHRASE }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "${SHIPRAG_SIGNING_PASSPHRASE:-}" ]]; then
+            echo "::notice title=One-time signing setup needed::Add SHIPRAG_SIGNING_PASSPHRASE in Settings > Secrets and variables > Actions. See signing/README.md. No installable APK will be uploaded until configured."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          umask 077
+          KEYFILE="$RUNNER_TEMP/shiprag-permanent.jks"
+          base64 -d signing/shiprag.jks.enc.b64 |
+            openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 -salt -out "$KEYFILE" -pass env:SHIPRAG_SIGNING_PASSPHRASE
+          actual="$(keytool -list -v -keystore "$KEYFILE" -storepass "$SHIPRAG_SIGNING_PASSPHRASE" -alias shiprag | sed -n 's/.*SHA256: //p' | head -1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          expected="BD4EDEB488A6043FFF4312DF71EC76C9B681D6F8A5E61AC50B974D9EEABE6F10"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error title=Signing identity mismatch::Keystore certificate has changed; refusing to produce an incompatible upgrade."
+            exit 1
+          fi
+          echo "SHIPRAG_KEYSTORE_FILE=$KEYFILE" >> "$GITHUB_ENV"
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
       - name: Test and build APK
+        env:
+          SHIPRAG_KEYSTORE_PASSWORD: ${{ secrets.SHIPRAG_SIGNING_PASSPHRASE }}
         run: gradle --no-daemon --stacktrace :app:testDebugUnitTest :app:assembleDebug
-      - name: Upload installable debug APK
-        if: success()
+      - name: Verify permanent Android APK signature
+        if: steps.permanent_signing.outputs.enabled == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=app/build/outputs/apk/debug/app-debug.apk
+          SIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
+          "$SIGNER" verify --print-certs "$APP"
+          actual="$("$SIGNER" verify --print-certs "$APP" | sed -n 's/.*certificate SHA-256 digest: //p' | head -1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          expected="BD4EDEB488A6043FFF4312DF71EC76C9B681D6F8A5E61AC50B974D9EEABE6F10"
+          if [[ "$actual" != "$expected" ]]; then
+            echo "::error title=APK signing identity mismatch::Refusing mismatched upgrade."
+            exit 1
+          fi
+      - name: Upload installable permanently signed APK
+        if: success() && steps.permanent_signing.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: ShipRAG-Android-debug-APK
+          name: ShipRAG-Android-permanently-signed-APK
           path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          retention-days: 90
           if-no-files-found: error
+      - name: Explain one-time secret setup
+        if: success() && github.event_name != 'pull_request' && steps.permanent_signing.outputs.enabled != 'true'
+        run: |
+          echo "::notice title=APK not published::Add the signing secret in GitHub Actions settings, then rerun this workflow. Future APKs will install without clearing imported data."

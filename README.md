@@ -1,6 +1,8 @@
+> **Android app upgrades:** A different signing key on each GitHub Actions runner caused the old APKs to require uninstall/reinstall. This project now pins one permanent signing certificate. After the one-time signing-secret setup and one final migration from the old temporary-signed APK, every later permanently signed APK upgrades in place, retaining the original app's private manuals, indexes and model settings. The signing private key is encrypted in git; its passphrase must be kept as a GitHub Actions secret.
+
 # ShipRAG Android — source-first offline library
 
-**Status:** Android Studio **source project**, not a compiled APK. The ZIP importer, local retrieval, model client, and evidence viewer have been implemented, but the Android binary has **not** been built or smoke-tested in this environment (Android SDK/Gradle are not available here). Build/debug on Android Studio or run the GitHub Actions workflow supplied below before shipboard use.
+**Status:** Offline-first Android app, compiled and tested using GitHub Actions. For installable update builds, configure the permanent signing secret once. See [signing/README.md](signing/README.md).
 
 Designed against the current `snehithgit/docling-stage2b` retrieval artifacts, not as a port of its conversion/review pipeline. It leaves the original Python application and all original data untouched.
 

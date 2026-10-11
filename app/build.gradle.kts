@@ -9,8 +9,30 @@ android {
         applicationId = "com.shiprag.mobile"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Newer GitHub runs always have higher version codes for Android's update checks.
+        // On a local build, use a fixed value above every previous temporary debug build.
+        val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1
+        versionCode = 10000 + runNumber
+        versionName = "0.3.$runNumber"
+    }
+    // No permanent private key is committed to this public repository.
+    // GitHub decrypts an encrypted keystore with its private Actions secret.
+    val stableFile = System.getenv("SHIPRAG_KEYSTORE_FILE")
+    val stablePassword = System.getenv("SHIPRAG_KEYSTORE_PASSWORD")
+    signingConfigs {
+        if (!stableFile.isNullOrBlank() && !stablePassword.isNullOrBlank()) {
+            create("shipragStable") {
+                storeFile = file(stableFile)
+                storePassword = stablePassword
+                keyAlias = "shiprag"
+                keyPassword = stablePassword
+            }
+        }
+    }
+    buildTypes {
+        getByName("debug") {
+            signingConfigs.findByName("shipragStable")?.let { signingConfig = it }
+        }
     }
     buildFeatures { compose = true }
     compileOptions {
