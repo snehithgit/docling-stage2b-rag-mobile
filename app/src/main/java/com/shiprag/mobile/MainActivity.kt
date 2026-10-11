@@ -3,11 +3,14 @@ package com.shiprag.mobile
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -25,11 +28,37 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shiprag.mobile.data.*
 import com.shiprag.mobile.ui.SourceScreen
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private enum class Tab(val label: String) { Library("Library"), Ask("Ask"), Settings("Models") }
+
+/** Keep search state outside of AskPage: the source reader temporarily removes AskPage from composition. */
+private class AskSession {
+    val query = mutableStateOf("")
+    val selectedManual = mutableStateOf<String?>(null)
+    val filterOpen = mutableStateOf(false)
+    val hybrid = mutableStateOf(false)
+    val busy = mutableStateOf(false)
+    val generating = mutableStateOf(false)
+    val results = mutableStateOf<List<Source>>(emptyList())
+    val response = mutableStateOf<Generated?>(null)
+    val error = mutableStateOf("")
+
+    fun clear() {
+        query.value = ""
+        selectedManual.value = null
+        filterOpen.value = false
+        hybrid.value = false
+        busy.value = false
+        generating.value = false
+        results.value = emptyList()
+        response.value = null
+        error.value = ""
+    }
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,6 +72,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ShipRagApp(store: LibraryStore) {
     val scope = rememberCoroutineScope()
+    val askSession = remember { AskSession() }
+    val askListState = rememberLazyListState()
     var tab by remember { mutableStateOf(Tab.Library) }
     var source by remember { mutableStateOf<Source?>(null) }
     var report by remember { mutableStateOf<ImportReport?>(null) }
@@ -65,6 +96,8 @@ private fun ShipRagApp(store: LibraryStore) {
                 }
             }.onSuccess {
                 refresh()
+                askSession.clear()  // An imported backup invalidates the previous search corpus.
+                scope.launch { askListState.scrollToItem(0) }
                 progress = ""; message = "Imported ${it.manuals} manuals and ${it.chunks} searchable chunks."
                 tab = Tab.Library
             }.onFailure { message = "Import failed: ${it.message ?: "Invalid backup"}"; progress = "" }
@@ -76,6 +109,7 @@ private fun ShipRagApp(store: LibraryStore) {
     val colors = if (dark) darkColorScheme(primary = androidx.compose.ui.graphics.Color(0xFF8BD2EB),
         secondary = androidx.compose.ui.graphics.Color(0xFFB0C6D0)) else lightColorScheme(
         primary = androidx.compose.ui.graphics.Color(0xFF125A73), secondary = androidx.compose.ui.graphics.Color(0xFF5B7080))
+    BackHandler(enabled = source != null) { source = null }
     MaterialTheme(colorScheme = colors) {
         val selected = source
         if (selected != null) {
@@ -108,7 +142,8 @@ private fun ShipRagApp(store: LibraryStore) {
                 }
                 when (tab) {
                     Tab.Library -> LibraryPage(report, inventory, manuals, importing, progress, openZip)
-                    Tab.Ask -> AskPage(store, manuals, onOpen = { source = it }, onConfigure = { tab = Tab.Settings }, onImport = openZip)
+                    Tab.Ask -> AskPage(store, manuals, session = askSession, listState = askListState, scope = scope,
+                        onOpen = { source = it }, onConfigure = { tab = Tab.Settings }, onImport = openZip)
                     Tab.Settings -> SettingsPage(store, report?.embeddedModels ?: emptyList()) { message = it }
                 }
             }
@@ -178,18 +213,18 @@ private fun LibraryPage(report: ImportReport?, inventory: Map<String, Int>, manu
 }
 
 @Composable
-private fun AskPage(store: LibraryStore, manuals: List<String>, onOpen: (Source) -> Unit,
+private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSession, listState: LazyListState,
+                    scope: CoroutineScope, onOpen: (Source) -> Unit,
                     onConfigure: () -> Unit, onImport: () -> Unit) {
-    val scope = rememberCoroutineScope()
-    var query by remember { mutableStateOf("") }
-    var selectedManual by remember { mutableStateOf<String?>(null) }
-    var filterOpen by remember { mutableStateOf(false) }
-    var hybrid by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
-    var generating by remember { mutableStateOf(false) }
-    var results by remember { mutableStateOf<List<Source>>(emptyList()) }
-    var response by remember { mutableStateOf<Generated?>(null) }
-    var error by remember { mutableStateOf("") }
+    var query by session.query
+    var selectedManual by session.selectedManual
+    var filterOpen by session.filterOpen
+    var hybrid by session.hybrid
+    var busy by session.busy
+    var generating by session.generating
+    var results by session.results
+    var response by session.response
+    var error by session.error
     fun search() {
         if (query.isBlank() || busy || store.root == null) return
         busy = true; response = null; error = ""; results = emptyList()
@@ -225,7 +260,7 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, onOpen: (Source)
         }
         return
     }
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(Modifier.fillMaxSize(), state = listState, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text("Ask your manuals", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             Text("Search is on-device. Answer generation uses only the chosen LLM provider and cited excerpts.", color = MaterialTheme.colorScheme.onSurfaceVariant)
