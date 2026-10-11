@@ -29,7 +29,7 @@ jobs:
           SDKMANAGER=$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)
           test -n "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install 'platforms;android-37' 'build-tools;36.0.0'
+          "$SDKMANAGER" --sdk_root="$SDK_ROOT" --install 'platforms;android-36' 'build-tools;36.0.0'
           echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
       - name: Configure Gradle
         uses: gradle/actions/setup-gradle@v4
