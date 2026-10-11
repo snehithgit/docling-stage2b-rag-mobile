@@ -110,6 +110,22 @@ class LibraryStore(private val context: Context) {
             buildList { while(c.moveToNext()) add(c.getString(0)) }
         }
     }
+    /** Other proven extracts from the cited PDF page, useful when input PDFs were not bundled. */
+    fun pageSources(manual: String, page: Int?, take: Int = 24): List<Source> {
+        if (page == null || page < 1) return emptyList()
+        return db().use { database ->
+            database.rawQuery("SELECT * FROM chunks WHERE manual=? AND evidence_kind='text' AND pages LIKE ? LIMIT 450",
+                arrayOf(manual, "%$page%")).use { c ->
+                buildList {
+                    while (c.moveToNext()) {
+                        val row = source(c)
+                        if (page in row.pages) add(row)
+                    }
+                }.sortedWith(compareBy<Source> { it.page ?: Int.MAX_VALUE }.thenBy { it.id }).take(take)
+            }
+        }
+    }
+
     fun statistics(): ImportReport? = root?.let { root ->
         db().use { d ->
             val manuals = scalar(d, "SELECT COUNT(DISTINCT manual) FROM chunks")

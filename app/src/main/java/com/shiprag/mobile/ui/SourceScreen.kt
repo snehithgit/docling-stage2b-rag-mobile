@@ -53,6 +53,9 @@ fun SourceScreen(source: Source, store: LibraryStore, resolver: ManualReferenceR
     }
     var currentPage by remember(source.id) { mutableIntStateOf(((source.page ?: 1)-1).coerceAtLeast(0)) }
     var imgIndex by remember(source.id) { mutableIntStateOf(0) }
+    val pageContents by produceState(initialValue = emptyList<Source>(), source.manual, source.page, store.root) {
+        value = withContext(Dispatchers.IO) { store.pageSources(source.manual, source.page) }
+    }
     val pageCount by produceState(initialValue = 0, pdf) {
         value = withContext(Dispatchers.IO) {
             if (pdf == null) 0 else runCatching {
@@ -102,6 +105,24 @@ fun SourceScreen(source: Source, store: LibraryStore, resolver: ManualReferenceR
                         style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     HorizontalDivider(Modifier.padding(vertical=18.dp))
                     Text(source.content,style=MaterialTheme.typography.bodyLarge)
+                    val other = pageContents.filter { it.id != source.id }
+                    if (other.isNotEmpty()) {
+                        HorizontalDivider(Modifier.padding(vertical=18.dp))
+                        Text("Other source extracts on this page", style=MaterialTheme.typography.titleMedium,
+                            fontWeight=FontWeight.SemiBold)
+                        Text("Original PDF not needed. All extracts below come from the same imported manual and PDF page.",
+                            style=MaterialTheme.typography.bodySmall, color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(12.dp))
+                        other.forEach { part ->
+                            ElevatedCard(Modifier.fillMaxWidth().padding(bottom=10.dp)) {
+                                Column(Modifier.padding(12.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                                    Text(part.headings.lastOrNull().orEmpty().ifBlank { part.chunkId },
+                                        style=MaterialTheme.typography.titleSmall)
+                                    Text(part.content.take(2500), style=MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                        }
+                    }
                     Spacer(Modifier.height(32.dp))
                 }
             }
