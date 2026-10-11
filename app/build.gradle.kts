@@ -4,7 +4,7 @@ plugins {
 }
 android {
     namespace = "com.shiprag.mobile"
-    compileSdk = 37
+    compileSdk = 36
     defaultConfig {
         applicationId = "com.shiprag.mobile"
         minSdk = 26
