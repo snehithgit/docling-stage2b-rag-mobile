@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.shiprag.mobile.data.Source
 import com.shiprag.mobile.data.SourceAssets
 import com.shiprag.mobile.data.LibraryStore
+import com.shiprag.mobile.data.ManualReferenceResolver
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -38,7 +39,8 @@ import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SourceScreen(source: Source, store: LibraryStore, onBack: ()->Unit) {
+fun SourceScreen(source: Source, store: LibraryStore, resolver: ManualReferenceResolver,
+                 onBack: () -> Unit, onFollow: (Source) -> Unit) {
     val assets=remember(source.id,store.root) { SourceAssets(store) }
     val pdf=remember(source.id) { assets.pdfFor(source) }
     val pics by produceState(initialValue = emptyList<File>(), source.id) {
@@ -67,6 +69,7 @@ fun SourceScreen(source: Source, store: LibraryStore, onBack: ()->Unit) {
         Column(Modifier.fillMaxSize().padding(inset)) {
             Text("${source.pages.joinToString(prefix="PDF page ").ifBlank { "Page unspecified" }}  •  ${source.chunkId}",
                 Modifier.padding(horizontal=20.dp, vertical=10.dp),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            ReferenceRoutes(source, resolver, onFollow)
             TabRow(selectedTabIndex=tab) {
                 Tab(selected=tab==0,onClick={tab=0},text={Text("PDF")},icon={Icon(Icons.Default.Description,null)})
                 Tab(selected=tab==1,onClick={tab=1},text={Text("Images")},icon={Icon(Icons.Default.Image,null)})

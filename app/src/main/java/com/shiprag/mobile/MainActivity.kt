@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shiprag.mobile.data.*
 import com.shiprag.mobile.ui.SourceScreen
+import com.shiprag.mobile.ui.ReferenceRoutes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -78,6 +79,20 @@ private fun ShipRagApp(store: LibraryStore) {
     val askListState = rememberLazyListState()
     var tab by remember { mutableStateOf(Tab.Library) }
     var source by remember { mutableStateOf<Source?>(null) }
+    var sourceHistory by remember { mutableStateOf<List<Source>>(emptyList()) }
+    val linksResolver = remember(store.root) { ManualReferenceResolver(store) }
+    val openSource: (Source) -> Unit = { next ->
+        val previous = source
+        if (previous != null && previous.id != next.id) sourceHistory = sourceHistory + previous
+        source = next
+    }
+    val closeSource: () -> Unit = {
+        if (sourceHistory.isEmpty()) source = null
+        else {
+            source = sourceHistory.last()
+            sourceHistory = sourceHistory.dropLast(1)
+        }
+    }
     var report by remember { mutableStateOf<ImportReport?>(null) }
     var inventory by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var manuals by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -99,6 +114,8 @@ private fun ShipRagApp(store: LibraryStore) {
             }.onSuccess {
                 refresh()
                 askSession.clear()  // An imported backup invalidates the previous search corpus.
+                sourceHistory = emptyList()
+                source = null
                 scope.launch { askListState.scrollToItem(0) }
                 progress = ""; message = "Imported ${it.manuals} manuals and ${it.chunks} searchable chunks."
                 tab = Tab.Library
@@ -111,11 +128,11 @@ private fun ShipRagApp(store: LibraryStore) {
     val colors = if (dark) darkColorScheme(primary = androidx.compose.ui.graphics.Color(0xFF8BD2EB),
         secondary = androidx.compose.ui.graphics.Color(0xFFB0C6D0)) else lightColorScheme(
         primary = androidx.compose.ui.graphics.Color(0xFF125A73), secondary = androidx.compose.ui.graphics.Color(0xFF5B7080))
-    BackHandler(enabled = source != null) { source = null }
+    BackHandler(enabled = source != null) { closeSource() }
     MaterialTheme(colorScheme = colors) {
         val selected = source
         if (selected != null) {
-            SourceScreen(selected, store) { source = null }
+            SourceScreen(selected, store, resolver = linksResolver, onBack = closeSource, onFollow = openSource)
         } else Scaffold(
             topBar = { TopAppBar(title = {
                 Column {
@@ -145,7 +162,7 @@ private fun ShipRagApp(store: LibraryStore) {
                 when (tab) {
                     Tab.Library -> LibraryPage(report, inventory, manuals, importing, progress, openZip)
                     Tab.Ask -> AskPage(store, manuals, session = askSession, listState = askListState, scope = scope,
-                        onOpen = { source = it }, onConfigure = { tab = Tab.Settings }, onImport = openZip)
+                        resolver = linksResolver, onOpen = openSource, onConfigure = { tab = Tab.Settings }, onImport = openZip)
                     Tab.Settings -> SettingsPage(store, report?.embeddedModels ?: emptyList()) { message = it }
                 }
             }
@@ -220,7 +237,7 @@ private fun LibraryPage(report: ImportReport?, inventory: Map<String, Int>, manu
 
 @Composable
 private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSession, listState: LazyListState,
-                    scope: CoroutineScope, onOpen: (Source) -> Unit,
+                    scope: CoroutineScope, resolver: ManualReferenceResolver, onOpen: (Source) -> Unit,
                     onConfigure: () -> Unit, onImport: () -> Unit) {
     var query by session.query
     var selectedManual by session.selectedManual
@@ -335,11 +352,11 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSess
         if (response != null) item { AnswerCard(requireNotNull(response), results, onOpen) }
         if (evidenceFilter != "Visual" && textResults.isNotEmpty()) {
             item { Text("Text sources", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
-            items(textResults, key = { "text-${it.id}" }) { result -> SourceCard(result, onOpen) }
+            items(textResults, key = { "text-${it.id}" }) { result -> SourceCard(result, resolver, onOpen) }
         }
         if (evidenceFilter != "Text" && visualResults.isNotEmpty()) {
             item { Text("Visual sources — diagrams and pictures", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
-            items(visualResults, key = { "visual-${it.id}" }) { result -> SourceCard(result, onOpen) }
+            items(visualResults, key = { "visual-${it.id}" }) { result -> SourceCard(result, resolver, onOpen) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
@@ -365,7 +382,7 @@ private fun AnswerCard(answer: Generated, sources: List<Source>, onOpen: (Source
     }
 }
 
-@Composable private fun SourceCard(source: Source, onOpen: (Source) -> Unit) {
+@Composable private fun SourceCard(source: Source, resolver: ManualReferenceResolver, onOpen: (Source) -> Unit) {
     OutlinedCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().clickable { onOpen(source) }) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -377,6 +394,7 @@ private fun AnswerCard(answer: Generated, sources: List<Source>, onOpen: (Source
             Text(source.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2)
             Text(source.content.replace('\n', ' ').take(250) + if (source.content.length > 250) "…" else "",
                 style = MaterialTheme.typography.bodyMedium, maxLines = 5)
+            ReferenceRoutes(source, resolver, onOpen, compact = true)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Page ${source.page ?: "?"}  •  ${source.evidenceKind}  •  ${source.method}",
                     modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall,
