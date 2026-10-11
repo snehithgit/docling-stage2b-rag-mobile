@@ -45,6 +45,10 @@ fun SourceScreen(source: Source, store: LibraryStore, onBack: ()->Unit) {
         value = withContext(Dispatchers.IO) { assets.pageImages(source) }
     }
     var tab by remember(source.id) { mutableIntStateOf(if (pdf!=null) 0 else 2) }
+    // Without the original input PDF, a cited visual should open its Docling picture directly.
+    LaunchedEffect(source.id, pdf, pics.size) {
+        if (pdf == null && pics.isNotEmpty() && source.evidenceKind == "visual") tab = 1
+    }
     var currentPage by remember(source.id) { mutableIntStateOf(((source.page ?: 1)-1).coerceAtLeast(0)) }
     var imgIndex by remember(source.id) { mutableIntStateOf(0) }
     val pageCount by produceState(initialValue = 0, pdf) {

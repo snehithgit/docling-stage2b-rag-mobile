@@ -117,7 +117,8 @@ class LibraryStore(private val context: Context) {
             val vectors = scalar(d, "SELECT COUNT(*) FROM chunks WHERE vec_index >= 0")
             val docs = root.walkTopDown().filter { it.isFile }.toList()
             ImportReport(manuals, chunks, vectors, docs.count { it.extension.equals("pdf", true) },
-                docs.count { it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") }, vectorModels(d))
+                docs.count { it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") }, vectorModels(d),
+                scalar(d, "SELECT COUNT(*) FROM chunks WHERE evidence_kind='visual'"))
         }
     }
     fun vectorModels(): List<String> = db().use { vectorModels(it) }
@@ -197,7 +198,8 @@ class LibraryStore(private val context: Context) {
         val vectorCount = scalar(db, "SELECT COUNT(*) FROM chunks WHERE vec_index >= 0")
         return ImportReport(manualCount, chunkCount, vectorCount,
             all.count { it.extension.equals("pdf", true) },
-            all.count { it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") }, vectorModels(db))
+            all.count { it.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp") }, vectorModels(db),
+            scalar(db, "SELECT COUNT(*) FROM chunks WHERE evidence_kind='visual'"))
     }
 
     private fun storeRow(db: SQLiteDatabase, raw: String, folder: String): Int =

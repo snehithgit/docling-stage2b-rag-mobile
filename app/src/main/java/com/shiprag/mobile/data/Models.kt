@@ -21,7 +21,7 @@ data class Source(
     val title: String get() = headings.lastOrNull().orEmpty().ifBlank { manual.substringBeforeLast('.') }
 }
 
-data class ImportReport(val manuals: Int, val chunks: Int, val vectors: Int, val pdfs: Int, val images: Int, val embeddedModels: List<String>)
+data class ImportReport(val manuals: Int, val chunks: Int, val vectors: Int, val pdfs: Int, val images: Int, val embeddedModels: List<String>, val visualSources: Int = 0)
 
 data class AppSettings(
     val chatUrl: String = "http://127.0.0.1:8080/v1/chat/completions",

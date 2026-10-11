@@ -18,7 +18,7 @@ class Retriever(private val library: LibraryStore) {
     private val idRx = Regex("[A-Za-z]+\\d+[A-Za-z0-9_./:+~-]*")
     private fun idGuard(query: String) = idRx.findAll(query).map { it.value }.distinct().toList()
 
-    fun lexical(question: String, manual: String? = null, take: Int = 60): List<Source> {
+    fun lexical(question: String, manual: String? = null, take: Int = 60, evidenceKind: String? = null): List<Source> {
         val queryTokens = tokens(question).distinct().take(12)
         if (queryTokens.isEmpty()) return emptyList()
         val fts = queryTokens.flatMap { token -> token.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotBlank() } }
@@ -26,18 +26,24 @@ class Retriever(private val library: LibraryStore) {
         if (fts.isBlank()) return emptyList()
         val candidates = LinkedHashMap<Long, Source>()
         library.db().use { db ->
-            val condition = if (manual == null) "" else " AND c.manual=?"
-            val args = if (manual == null) arrayOf(fts) else arrayOf(fts, manual)
-            db.rawQuery("SELECT c.* FROM chunks_fts f JOIN chunks c ON c.id=f.docid WHERE f.content MATCH ?$condition LIMIT 1500", args).use { c ->
+            val condition = (if (manual == null) "" else " AND c.manual=?") +
+                (if (evidenceKind == null) "" else " AND c.evidence_kind=?")
+            val args = mutableListOf(fts)
+            if (manual != null) args.add(manual)
+            if (evidenceKind != null) args.add(evidenceKind)
+            db.rawQuery("SELECT c.* FROM chunks_fts f JOIN chunks c ON c.id=f.docid WHERE f.content MATCH ?$condition LIMIT 1500", args.toTypedArray()).use { c ->
                 while(c.moveToNext()) { val row=LibraryStore.source(c); candidates[row.id]=row }
             }
             // Retrieve exact structured identifiers even when FTS punctuation split differs.
             for (id in idGuard(question).take(4)) {
                 val sql = "SELECT * FROM chunks WHERE (body LIKE ? OR search_terms LIKE ?)" +
-                    (if (manual == null) "" else " AND manual=?") + " LIMIT 150"
+                    (if (manual == null) "" else " AND manual=?") +
+                    (if (evidenceKind == null) "" else " AND evidence_kind=?") + " LIMIT 150"
                 val pat = "%$id%"
-                val bind = if (manual == null) arrayOf(pat,pat) else arrayOf(pat,pat,manual)
-                db.rawQuery(sql, bind).use { c -> while(c.moveToNext()) { val row=LibraryStore.source(c); candidates[row.id]=row } }
+                val bind = mutableListOf(pat, pat)
+                if (manual != null) bind.add(manual)
+                if (evidenceKind != null) bind.add(evidenceKind)
+                db.rawQuery(sql, bind.toTypedArray()).use { c -> while(c.moveToNext()) { val row=LibraryStore.source(c); candidates[row.id]=row } }
             }
         }
         if (candidates.isEmpty()) return emptyList()
@@ -118,13 +124,20 @@ class Retriever(private val library: LibraryStore) {
         val fused = score.entries.sortedByDescending { it.value }.map { (id,s) -> found.getValue(id).copy(score=s,method="hybrid_rrf") }
         // An exact identifier should not be displaced by a semantically similar different device.
         val ids = idGuard(question)
-        if (ids.isNotEmpty() && lexical.isNotEmpty()) {
+        val visual = lexical(question, manual, take = 8, evidenceKind = "visual").map { it.copy(method = "visual_lexical") }
+        val prioritized = if (ids.isNotEmpty() && lexical.isNotEmpty()) {
             val lex = lexical.first()
             val hasAll = ids.all { id -> lex.content.contains(Regex("(?<![A-Za-z0-9])${Regex.escape(id)}(?![A-Za-z0-9])",RegexOption.IGNORE_CASE)) }
-            if (hasAll && fused.firstOrNull()?.id != lex.id) return diverse(listOf(lex.copy(method="hybrid_exact_id")) + fused.filter { it.id != lex.id },take)
-        }
-        return diverse(fused, take)
+            if (hasAll && fused.firstOrNull()?.id != lex.id) listOf(lex.copy(method="hybrid_exact_id")) + fused.filter { it.id != lex.id }
+            else fused
+        } else fused
+        // Existing machine vectors cover text chunks; keep separate visual lexical matches visible.
+        val text = diverse(prioritized.filter { it.evidenceKind != "visual" }, take)
+        return text + visual
     }
 
-    fun search(question: String, manual: String?, take: Int=8) = lexical(question,manual,take)
+    /** Independently rank each evidence channel: dense text results must not hide matching diagrams. */
+    fun search(question: String, manual: String?, take: Int=8): List<Source> =
+        lexical(question, manual, take, evidenceKind = "text") +
+        lexical(question, manual, take, evidenceKind = "visual").map { it.copy(method = "visual_lexical") }
 }

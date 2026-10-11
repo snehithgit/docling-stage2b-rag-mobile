@@ -46,6 +46,7 @@ private class AskSession {
     val results = mutableStateOf<List<Source>>(emptyList())
     val response = mutableStateOf<Generated?>(null)
     val error = mutableStateOf("")
+    val evidenceFilter = mutableStateOf("All")
 
     fun clear() {
         query.value = ""
@@ -57,6 +58,7 @@ private class AskSession {
         results.value = emptyList()
         response.value = null
         error.value = ""
+        evidenceFilter.value = "All"
     }
 }
 
@@ -173,7 +175,11 @@ private fun LibraryPage(report: ImportReport?, inventory: Map<String, Int>, manu
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatCard(report.manuals.toString(), "Manuals", Modifier.weight(1f))
-                    StatCard(report.chunks.toString(), "Chunks", Modifier.weight(1f))
+                    StatCard((report.chunks - report.visualSources).toString(), "Text", Modifier.weight(1f))
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatCard(report.visualSources.toString(), "Visual sources", Modifier.weight(1f))
                     StatCard(report.vectors.toString(), "Vectors", Modifier.weight(1f))
                 }
             }
@@ -225,9 +231,12 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSess
     var results by session.results
     var response by session.response
     var error by session.error
+    var evidenceFilter by session.evidenceFilter
+    val textResults = results.filter { it.evidenceKind != "visual" }
+    val visualResults = results.filter { it.evidenceKind == "visual" }
     fun search() {
         if (query.isBlank() || busy || store.root == null) return
-        busy = true; response = null; error = ""; results = emptyList()
+        busy = true; response = null; error = ""; results = emptyList(); evidenceFilter = "All"
         scope.launch {
             runCatching { withContext(Dispatchers.IO) {
                 val engine = Retriever(store)
@@ -310,8 +319,28 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSess
         } else if (!busy && query.isNotBlank() && error.isBlank()) item {
             Text("No results yet. Search existing indexes first, then generate an answer.", color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (results.isNotEmpty()) item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Evidence type", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = evidenceFilter == "All", onClick = { evidenceFilter = "All" },
+                        label = { Text("All (${results.size})") })
+                    FilterChip(selected = evidenceFilter == "Text", onClick = { evidenceFilter = "Text" },
+                        label = { Text("Text (${textResults.size})") })
+                    FilterChip(selected = evidenceFilter == "Visual", onClick = { evidenceFilter = "Visual" },
+                        label = { Text("Visual (${visualResults.size})") })
+                }
+            }
+        }
         if (response != null) item { AnswerCard(requireNotNull(response), results, onOpen) }
-        items(results) { result -> SourceCard(result, onOpen) }
+        if (evidenceFilter != "Visual" && textResults.isNotEmpty()) {
+            item { Text("Text sources", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+            items(textResults, key = { "text-${it.id}" }) { result -> SourceCard(result, onOpen) }
+        }
+        if (evidenceFilter != "Text" && visualResults.isNotEmpty()) {
+            item { Text("Visual sources — diagrams and pictures", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
+            items(visualResults, key = { "visual-${it.id}" }) { result -> SourceCard(result, onOpen) }
+        }
         item { Spacer(Modifier.height(24.dp)) }
     }
 }
@@ -339,7 +368,12 @@ private fun AnswerCard(answer: Generated, sources: List<Source>, onOpen: (Source
 @Composable private fun SourceCard(source: Source, onOpen: (Source) -> Unit) {
     OutlinedCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().clickable { onOpen(source) }) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(source.manual, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, maxLines = 2)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Icon(if (source.evidenceKind == "visual") Icons.Default.Image else Icons.Default.Description, null,
+                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Text(if (source.evidenceKind == "visual") "VISUAL · ${source.manual}" else source.manual,
+                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, maxLines = 2)
+            }
             Text(source.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2)
             Text(source.content.replace('\n', ' ').take(250) + if (source.content.length > 250) "…" else "",
                 style = MaterialTheme.typography.bodyMedium, maxLines = 5)
@@ -347,7 +381,8 @@ private fun AnswerCard(answer: Generated, sources: List<Source>, onOpen: (Source
                 Text("Page ${source.page ?: "?"}  •  ${source.evidenceKind}  •  ${source.method}",
                     modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("View source", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                Text(if (source.evidenceKind == "visual") "View image" else "View source",
+                    color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
                 Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.primary)
             }
         }
