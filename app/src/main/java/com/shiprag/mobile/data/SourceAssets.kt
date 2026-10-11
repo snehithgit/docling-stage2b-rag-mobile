@@ -65,7 +65,9 @@ class SourceAssets(private val library: LibraryStore) {
             for (i in 0 until pictures.length()) {
                 val picture = pictures.optJSONObject(i) ?: continue
                 val p = picture.optJSONArray("prov")?.optJSONObject(0)?.optInt("page_no", -1) ?: -1
-                if (i !in explicit && (page == null || page != p)) continue
+                // A visual citation has an exact Docling picture reference. Never display a different figure from the same page first.
+                if (explicit.isNotEmpty()) { if (i !in explicit) continue }
+                else if (page == null || page != p) continue
                 val uri = picture.optJSONObject("image")?.optString("uri").orEmpty().replace('\\','/')
                 if (uri.isBlank() || uri.startsWith('/') || uri.split('/').any { it == ".." }) continue
                 val member = zip.getEntry(uri) ?: continue
