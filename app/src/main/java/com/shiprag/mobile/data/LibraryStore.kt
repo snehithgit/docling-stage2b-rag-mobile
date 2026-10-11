@@ -223,7 +223,7 @@ class LibraryStore(private val context: Context) {
         val id = db.insertWithOnConflict("chunks", null, cv, SQLiteDatabase.CONFLICT_IGNORE)
         if (id == -1L) return 0
         val terms = json.optJSONArray("search_terms")?.let { arr -> (0 until arr.length()).joinToString(" ") { arr.optString(it) } } ?: ""
-        db.execSQL("INSERT INTO chunks_fts(docid, content) VALUES (?,?)", arrayOf(id, "$content ${headings} $terms"))
+        db.execSQL("INSERT INTO chunks_fts(docid, content) VALUES (?,?)", arrayOf<Any>(id, "$content ${headings} $terms"))
         return 1
     }
 
