@@ -251,6 +251,9 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSess
     var evidenceFilter by session.evidenceFilter
     val textResults = results.filter { it.evidenceKind != "visual" }
     val visualResults = results.filter { it.evidenceKind == "visual" }
+    val enoughToCite = results.count {
+        Relevance.strongEnoughForAnswer(query, Relevance.Candidate(it.content, it.headings.joinToString(" > "), it.manual))
+    }
     fun search() {
         if (query.isBlank() || busy || store.root == null) return
         busy = true; response = null; error = ""; results = emptyList(); evidenceFilter = "All"
@@ -328,9 +331,14 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSess
                     Text("${results.size} ranked evidence matches", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     TextButton(onClick = onConfigure) { Text("Generator") }
                 }
-                Button(onClick = ::generate, enabled = !generating, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = ::generate, enabled = !generating && enoughToCite > 0,
+                    modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.AutoAwesome, null); Spacer(Modifier.width(8.dp))
                     Text(if (generating) "Generating answer…" else "Generate grounded answer")
+                }
+                if (enoughToCite == 0) {
+                    Text("No strongly matching sources yet. Select the correct manual or add equipment/part numbers; an unsupported answer will not be generated.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
             }
         } else if (!busy && query.isNotBlank() && error.isBlank()) item {
@@ -352,11 +360,11 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSess
         if (response != null) item { AnswerCard(requireNotNull(response), requireNotNull(response).sources, onOpen) }
         if (evidenceFilter != "Visual" && textResults.isNotEmpty()) {
             item { Text("Text sources", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
-            items(textResults, key = { "text-${it.id}" }) { result -> SourceCard(result, resolver, onOpen) }
+            items(textResults, key = { "text-${it.id}" }) { result -> SourceCard(result, query, resolver, onOpen) }
         }
         if (evidenceFilter != "Text" && visualResults.isNotEmpty()) {
             item { Text("Visual sources — diagrams and pictures", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
-            items(visualResults, key = { "visual-${it.id}" }) { result -> SourceCard(result, resolver, onOpen) }
+            items(visualResults, key = { "visual-${it.id}" }) { result -> SourceCard(result, query, resolver, onOpen) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
@@ -382,7 +390,7 @@ private fun AnswerCard(answer: Generated, sources: List<Source>, onOpen: (Source
     }
 }
 
-@Composable private fun SourceCard(source: Source, resolver: ManualReferenceResolver, onOpen: (Source) -> Unit) {
+@Composable private fun SourceCard(source: Source, query: String, resolver: ManualReferenceResolver, onOpen: (Source) -> Unit) {
     OutlinedCard(shape = RoundedCornerShape(18.dp), modifier = Modifier.fillMaxWidth().clickable { onOpen(source) }) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
@@ -394,6 +402,11 @@ private fun AnswerCard(answer: Generated, sources: List<Source>, onOpen: (Source
             Text(source.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, maxLines = 2)
             Text(source.content.replace('\n', ' ').take(250) + if (source.content.length > 250) "…" else "",
                 style = MaterialTheme.typography.bodyMedium, maxLines = 5)
+            val supportsAnswer = Relevance.strongEnoughForAnswer(
+                query, Relevance.Candidate(source.content, source.headings.joinToString(" > "), source.manual))
+            Text(if (supportsAnswer) "Strong query match · candidate citation" else "Related excerpt · check relevance before citing",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (supportsAnswer) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             ReferenceRoutes(source, resolver, onOpen, compact = true)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Page ${source.page ?: "?"}  •  ${source.evidenceKind}  •  ${source.method}",
