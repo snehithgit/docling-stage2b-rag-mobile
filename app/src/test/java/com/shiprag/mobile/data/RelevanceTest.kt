@@ -68,6 +68,12 @@ class RelevanceTest {
         assertTrue(Relevance.strongEnoughForAnswer("How to replace pump motor?", steps))
     }
 
+    @Test fun singleGenericKeywordCannotGenerateAnAnswer() {
+        val broad = Relevance.Candidate("Hydraulic oil is present in the machinery.",
+            "General information", "Instruction Manual.pdf")
+        assertFalse(Relevance.strongEnoughForAnswer("oil", broad))
+    }
+
     @Test fun partNumberDescriptionDoesNotProveWiring() {
         val catalog = Relevance.Candidate("Heat Detector Salwico HC100 A2. Part no 38000.",
             "Heat Detector Salwico HC100 A2", "Fire alarm panel.pdf")
