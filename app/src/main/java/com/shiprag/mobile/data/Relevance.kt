@@ -70,11 +70,13 @@ object Relevance {
     }
 
 
-    private enum class Intent { Fault, Procedure, Value, General }
+    private enum class Intent { Diagram, Fault, Procedure, Value, General }
 
     private fun questionIntent(question: String): Intent {
         val q = question.lowercase(Locale.ROOT)
         return when {
+            Regex("\\b(wiring|diagram|schematic|circuit|terminal|pinout|connection|connections|drawing)\\b").containsMatchIn(q) ->
+                Intent.Diagram
             Regex("\\b(fault|alarm|trip|tripping|error|fails?|failure|overload|malfunction|troubleshoot|remedy|not working|wont|won't|doesn't|why)\\b").containsMatchIn(q) ->
                 Intent.Fault
             Regex("\\b(how to|steps|step by step|procedure|replace|changing|change|install|remove|reset|calibrate|adjust|inspect|repair|check)\\b").containsMatchIn(q) ->
@@ -89,6 +91,7 @@ object Relevance {
     private fun intentFit(question: String, body: String, heading: String): Double {
         val evidence = (body + " " + heading).lowercase(Locale.ROOT)
         return when (questionIntent(question)) {
+            Intent.Diagram -> if (Regex("\\b(wiring|diagram|schematic|circuit|terminal|terminals|pinout|connection|connections|drawing|electrical plan)\\b").containsMatchIn(evidence)) 1.40 else 0.57
             Intent.Fault -> if (Regex("\\b(fault|alarm|tripping|trip|cause|remedy|symptom|error|trouble|problem|overload|malfunction)\\b").containsMatchIn(evidence)) 1.22 else 0.72
             Intent.Procedure -> if (Regex("\\b(check|replace|disconnect|connect|remove|install|measure|adjust|inspect|turn|press|restart|set|clean|tighten|loosen|steps?|procedure)\\b").containsMatchIn(evidence)) 1.22 else 0.70
             Intent.Value -> if (Regex("\\b(specification|specified|setting|value|range|rated|grade|iso|viscosity|recommended|capacity|torque)\\b").containsMatchIn(evidence) ||
@@ -105,6 +108,7 @@ object Relevance {
         if (redirected && evidence.length < 450 &&
             !Regex("\\b(use|must|shall|should|set to|recommended|grade|[0-9]+\\s*(?:v|bar|mpa|rpm|mm|nm|vg))\\b").containsMatchIn(evidence)) return false
         return when (questionIntent(q)) {
+            Intent.Diagram -> Regex("\\b(wiring|diagram|schematic|circuit|terminal|terminals|pinout|connection|connections|drawing)\\b").containsMatchIn(evidence)
             Intent.Fault -> Regex("\\b(fault|alarm|cause|remedy|symptom|error|trouble|trip|overload|problem|malfunction)\\b").containsMatchIn(evidence)
             Intent.Procedure -> Regex("\\b(check|replace|disconnect|connect|remove|install|measure|adjust|inspect|turn|press|restart|set|clean|tighten|loosen|step|procedure)\\b").containsMatchIn(evidence)
             Intent.Value -> Regex("\\b(specification|specified|setting|value|range|rated|grade|iso|viscosity|recommended|capacity|torque|[0-9]+\\s*(?:v|bar|mpa|rpm|mm|nm|vg))\\b").containsMatchIn(evidence) ||
