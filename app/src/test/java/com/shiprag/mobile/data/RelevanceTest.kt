@@ -68,6 +68,15 @@ class RelevanceTest {
         assertTrue(Relevance.strongEnoughForAnswer("How to replace pump motor?", steps))
     }
 
+    @Test fun partNumberDescriptionDoesNotProveWiring() {
+        val catalog = Relevance.Candidate("Heat Detector Salwico HC100 A2. Part no 38000.",
+            "Heat Detector Salwico HC100 A2", "Fire alarm panel.pdf")
+        val drawing = Relevance.Candidate("Heat detector HC100 A2 wiring diagram with terminals 1 and 2.",
+            "HC100 A2 wiring diagram", "Fire alarm panel.pdf")
+        assertFalse(Relevance.strongEnoughForAnswer("HC100 A2 heat detector wiring", catalog))
+        assertTrue(Relevance.strongEnoughForAnswer("HC100 A2 heat detector wiring", drawing))
+    }
+
     @Test fun alarmQueryMustNotBeCitedFromUnrelatedSpecification() {
         val irrelevant = Relevance.Candidate("The motor nominal voltage is 24 V.",
             "Motor specification", "Crane.pdf")
