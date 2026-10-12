@@ -62,6 +62,50 @@ object Relevance {
         }
     }
 
+
+    private enum class Intent { Fault, Procedure, Value, General }
+
+    private fun questionIntent(question: String): Intent {
+        val q = question.lowercase(Locale.ROOT)
+        return when {
+            Regex("\\b(fault|alarm|trip|tripping|error|fails?|failure|overload|malfunction|troubleshoot|remedy|not working|wont|won't|doesn't|why)\\b").containsMatchIn(q) ->
+                Intent.Fault
+            Regex("\\b(how to|steps|step by step|procedure|replace|changing|change|install|remove|reset|calibrate|adjust|inspect|repair|check)\\b").containsMatchIn(q) ->
+                Intent.Procedure
+            Regex("\\b(oil type|value|setting|grade|viscosity|capacity|pressure|temperature|interval|voltage|current|torque|limit|clearance|specification|specifications|how much|what type)\\b").containsMatchIn(q) ->
+                Intent.Value
+            else -> Intent.General
+        }
+    }
+
+    /** Topic overlap is not proof that a document contains the requested kind of answer. */
+    private fun intentFit(question: String, body: String, heading: String): Double {
+        val evidence = (body + " " + heading).lowercase(Locale.ROOT)
+        return when (questionIntent(question)) {
+            Intent.Fault -> if (Regex("\\b(fault|alarm|tripping|trip|cause|remedy|symptom|error|trouble|problem|overload|malfunction)\\b").containsMatchIn(evidence)) 1.22 else 0.72
+            Intent.Procedure -> if (Regex("\\b(check|replace|disconnect|connect|remove|install|measure|adjust|inspect|turn|press|restart|set|clean|tighten|loosen|steps?|procedure)\\b").containsMatchIn(evidence)) 1.22 else 0.70
+            Intent.Value -> if (Regex("\\b(specification|specified|setting|value|range|rated|grade|iso|viscosity|recommended|capacity|torque)\\b").containsMatchIn(evidence) ||
+                Regex("\\b\\d+(?:[.,]\\d+)?\\s*(?:v|dc|ac|bar|mpa|psi|c|hz|rpm|nm|mm|kg|l|kw|kva|vg)\\b").containsMatchIn(evidence)) 1.23 else 0.78
+            Intent.General -> 1.0
+        }
+    }
+
+    private fun hasAnswerStructure(question: String, body: String, heading: String): Boolean {
+        val evidence = (body + " " + heading).lowercase(Locale.ROOT)
+        val q = question.lowercase(Locale.ROOT)
+        val redirected = Regex("\\b(?:see|refer to|found in)\\s+(?:the\\s+)?(?:section|chapter|page)\\b")
+            .containsMatchIn(evidence)
+        if (redirected && evidence.length < 450 &&
+            !Regex("\\b(use|must|shall|should|set to|recommended|grade|[0-9]+\\s*(?:v|bar|mpa|rpm|mm|nm|vg))\\b").containsMatchIn(evidence)) return false
+        return when (questionIntent(q)) {
+            Intent.Fault -> Regex("\\b(fault|alarm|cause|remedy|symptom|error|trouble|trip|overload|problem|malfunction)\\b").containsMatchIn(evidence)
+            Intent.Procedure -> Regex("\\b(check|replace|disconnect|connect|remove|install|measure|adjust|inspect|turn|press|restart|set|clean|tighten|loosen|step|procedure)\\b").containsMatchIn(evidence)
+            Intent.Value -> Regex("\\b(specification|specified|setting|value|range|rated|grade|iso|viscosity|recommended|capacity|torque|[0-9]+\\s*(?:v|bar|mpa|rpm|mm|nm|vg))\\b").containsMatchIn(evidence) ||
+                Regex("\\b\\d+(?:[.,]\\d+)?\\b").containsMatchIn(evidence)
+            Intent.General -> true
+        }
+    }
+
     data class Candidate(val body: String, val heading: String, val manual: String,
                          val score: Double = 0.0, val kind: String = "text")
     /**
@@ -122,6 +166,7 @@ object Relevance {
             // A pointer to a different section is useful as navigation, not proof of a fact.
             val redirects = listOf("refer to section", "see section", "refer to chapter", "see chapter")
             if (redirects.any { it in lower }) score *= 0.67
+            score *= intentFit(question, c.body, c.heading)
             if (score.isFinite() && score > 0.0) result.add(i to score)
         }
         return result.sortedWith(compareByDescending<Pair<Int, Double>> { it.second }.thenBy { it.first })
@@ -132,6 +177,6 @@ object Relevance {
         val hits = coverage(terms, candidate.body, candidate.heading)
         return sufficient(terms, candidate.body, candidate.heading) &&
             hits >= (if (terms.size >= 4) 0.75 else if (terms.size == 3) 2.0 / 3.0 else if (terms.size == 2) 0.999 else 1.0) &&
-            exactCodeMatch(equipmentCodes(question), candidate.body + " " + candidate.heading, candidate.manual)
+            exactCodeMatch(equipmentCodes(question), candidate.body + " " + candidate.heading, candidate.manual) && hasAnswerStructure(question, candidate.body, candidate.heading)
     }
 }
