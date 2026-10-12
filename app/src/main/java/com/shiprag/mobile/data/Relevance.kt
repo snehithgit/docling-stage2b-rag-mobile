@@ -185,6 +185,8 @@ object Relevance {
 
     fun strongEnoughForAnswer(question: String, candidate: Candidate): Boolean {
         val terms = queryTerms(question)
+        // A lone generic keyword such as "oil" is search input, not enough evidence for a factual answer.
+        if (terms.size == 1 && equipmentCodes(question).isEmpty()) return false
         val hits = coverage(terms, candidate.body, candidate.heading)
         return sufficient(terms, candidate.body, candidate.heading) &&
             hits >= (if (terms.size >= 4) 0.75 else if (terms.size == 3) 2.0 / 3.0 else if (terms.size == 2) 0.999 else 1.0) &&
