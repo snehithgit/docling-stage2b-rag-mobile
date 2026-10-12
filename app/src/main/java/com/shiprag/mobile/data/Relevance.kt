@@ -38,9 +38,16 @@ object Relevance {
     fun exactCodeMatch(queryCodes: List<String>, bodyAndHeadings: String, manual: String): Boolean {
         if (queryCodes.isEmpty()) return true
         val evidence = "$bodyAndHeadings $manual".lowercase(Locale.ROOT)
+        // Manuals alternate M4.3 / M 4.3 and R404A / R-404A. Match either
+        // spelling while still refusing F1 vs F10 or AD136TI vs AD136T.
+        val joined = evidence
+            .replace(Regex("(?<=[a-z])[ \\t-]+(?=[0-9])"), "")
+            .replace(Regex("(?<=[0-9])[ \\t-]+(?=[a-z])"), "")
         return queryCodes.all { code ->
-            val boundary = Regex("(?<![a-z0-9._/-])" + Regex.escape(code) + "(?![a-z0-9._/-])")
-            boundary.containsMatchIn(evidence)
+            val exact = Regex("(?<![a-z0-9._/-])" + Regex.escape(code) + "(?![a-z0-9._/-])")
+            val normalized = code.replace("-", "")
+            val normalizedMatcher = Regex("(?<![a-z0-9._/-])" + Regex.escape(normalized) + "(?![a-z0-9._/-])")
+            exact.containsMatchIn(evidence) || normalizedMatcher.containsMatchIn(joined)
         }
     }
 
