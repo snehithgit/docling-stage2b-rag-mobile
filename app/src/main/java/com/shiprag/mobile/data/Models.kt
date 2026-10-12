@@ -34,4 +34,4 @@ data class AppSettings(
     val embeddingApiKey: String = ""
 )
 
-data class Generated(val answer: String, val warning: String, val model: String)
+data class Generated(val answer: String, val warning: String, val model: String, val sources: List<Source> = emptyList())

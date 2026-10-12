@@ -325,7 +325,7 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSess
         if (results.isNotEmpty()) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("${results.size} evidence matches", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text("${results.size} ranked evidence matches", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     TextButton(onClick = onConfigure) { Text("Generator") }
                 }
                 Button(onClick = ::generate, enabled = !generating, modifier = Modifier.fillMaxWidth()) {
@@ -349,7 +349,7 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSess
                 }
             }
         }
-        if (response != null) item { AnswerCard(requireNotNull(response), results, onOpen) }
+        if (response != null) item { AnswerCard(requireNotNull(response), requireNotNull(response).sources, onOpen) }
         if (evidenceFilter != "Visual" && textResults.isNotEmpty()) {
             item { Text("Text sources", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
             items(textResults, key = { "text-${it.id}" }) { result -> SourceCard(result, resolver, onOpen) }
