@@ -38,6 +38,12 @@ class RelevanceTest {
         assertFalse(Relevance.exactCodeMatch(listOf("ad136ti"), "Engine AD136T operating instruction", "Engine.pdf"))
     }
 
+    @Test fun equivalentDeviceNotationResolvesWithoutFuzzyNumberMatches() {
+        assertTrue(Relevance.exactCodeMatch(listOf("r404a"), "R-404A refrigerant is listed", "REF PROV.pdf"))
+        assertTrue(Relevance.exactCodeMatch(listOf("m4.3"), "Panel M 4.3 wiring", "Fire alarm panel.pdf"))
+        assertFalse(Relevance.exactCodeMatch(listOf("f1"), "Fuse F10", "Crane.pdf"))
+    }
+
     @Test fun filenameAloneCannotCreateAnEvidenceMatch() {
         val unrelated = Relevance.Candidate("Disconnect the AC supply before opening enclosure.",
             "Maintenance", "Anemometer alarm reset.pdf")
