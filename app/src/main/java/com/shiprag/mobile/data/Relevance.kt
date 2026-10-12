@@ -17,7 +17,8 @@ object Relevance {
         "do","does","did","can","could","should","would","i","we","my",
         "me","please","where","when","why","give","tell","show","find",
         "check","explain","about","information","details","manual",
-        "instruction","instructions","procedure","procedures","used","using"
+        "instruction","instructions","procedure","procedures","used","using",
+        "this","that","it","its","some","any","there","therefore"
     )
     private val weakWords = setOf("system","unit","part","parts","general","overview")
     private val idRx = Regex("(?i)\\b(?=[a-z0-9._/-]*[a-z])(?=[a-z0-9._/-]*\\d)[a-z0-9]+(?:[._/-][a-z0-9]+)*\\b")
@@ -27,7 +28,7 @@ object Relevance {
 
     fun queryTerms(query: String): List<String> {
         val distinct = tokens(query).filterNot { it in stopWords }.distinct()
-        return (if (distinct.isNotEmpty()) distinct else tokens(query).distinct()).take(14)
+        return distinct.take(14)
     }
     fun equipmentCodes(query: String): List<String> = idRx.findAll(query)
         .map { it.value.lowercase(Locale.ROOT) }.filter { code ->
