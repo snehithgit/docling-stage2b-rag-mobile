@@ -53,6 +53,21 @@ class RelevanceTest {
         assertTrue(Relevance.strongEnoughForAnswer("engine oil dipstick level", real))
     }
 
+    @Test fun procedureEvidenceNeedsAnActualAction() {
+        val description = Relevance.Candidate("The device is a mechanical pump with a motor.",
+            "Equipment description", "Instruction Manual.pdf")
+        val steps = Relevance.Candidate("To replace the pump, disconnect the supply and remove the mounting bolts.",
+            "Pump replacement", "Instruction Manual.pdf")
+        assertFalse(Relevance.strongEnoughForAnswer("How to replace pump motor?", description))
+        assertTrue(Relevance.strongEnoughForAnswer("How to replace pump motor?", steps))
+    }
+
+    @Test fun alarmQueryMustNotBeCitedFromUnrelatedSpecification() {
+        val irrelevant = Relevance.Candidate("The motor nominal voltage is 24 V.",
+            "Motor specification", "Crane.pdf")
+        assertFalse(Relevance.strongEnoughForAnswer("Motor overload trip alarm cause", irrelevant))
+    }
+
     @Test fun redirectIsNotPreferredOverAnswer() {
         val redirect = Relevance.Candidate("The type of hydraulic oil can be found in Section 5. Refer to Section 5.",
             "Hydraulic oil specification", "Instruction Manual.pdf")
