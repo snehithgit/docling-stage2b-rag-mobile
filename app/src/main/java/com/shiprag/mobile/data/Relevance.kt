@@ -81,16 +81,21 @@ object Relevance {
         val result = ArrayList<Pair<Int, Double>>(candidates.size)
         for (i in candidates.indices) {
             val c = candidates[i]
-            val tokens = docs[i]
-            val count = tokens.groupingBy { it }.eachCount()
+            val documentTokens = docs[i]
+            val count = documentTokens.groupingBy { it }.eachCount()
             val found = terms.count { (count[it] ?: 0) > 0 }
-            if (!sufficient(terms, c.body, c.heading)) continue
+            val required = when {
+                terms.size <= 2 -> 1
+                terms.size <= 4 -> 2
+                else -> 3
+            }
+            if (found < required || (terms.size > 4 && found.toDouble() / terms.size < 0.38)) continue
             val combined = c.body + " " + c.heading
             if (!exactCodeMatch(codes, combined, c.manual)) continue
             val coverage = found.toDouble() / terms.size
             val headings = headTokens[i].toSet()
             val manualTokens = tokens(c.manual.replace('_', ' ').replace('-', ' ')).toSet()
-            val evidenceLength = tokens.size.coerceAtLeast(1)
+            val evidenceLength = documentTokens.size.coerceAtLeast(1)
             var bm25 = 0.0
             for (term in terms) {
                 val tf = count[term] ?: 0
