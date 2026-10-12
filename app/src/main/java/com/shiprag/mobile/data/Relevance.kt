@@ -121,7 +121,7 @@ object Relevance {
             val lower = c.body.lowercase(Locale.ROOT)
             // A pointer to a different section is useful as navigation, not proof of a fact.
             val redirects = listOf("refer to section", "see section", "refer to chapter", "see chapter")
-            if (redirects.any { it in lower } && coverage < 0.999) score *= 0.72
+            if (redirects.any { it in lower }) score *= 0.67
             if (score.isFinite() && score > 0.0) result.add(i to score)
         }
         return result.sortedWith(compareByDescending<Pair<Int, Double>> { it.second }.thenBy { it.first })
@@ -131,7 +131,7 @@ object Relevance {
         val terms = queryTerms(question)
         val hits = coverage(terms, candidate.body, candidate.heading)
         return sufficient(terms, candidate.body, candidate.heading) &&
-            hits >= (if (terms.size >= 4) 0.50 else if (terms.size == 3) 2.0 / 3.0 else 0.50) &&
+            hits >= (if (terms.size >= 4) 0.75 else if (terms.size == 3) 2.0 / 3.0 else if (terms.size == 2) 0.999 else 1.0) &&
             exactCodeMatch(equipmentCodes(question), candidate.body + " " + candidate.heading, candidate.manual)
     }
 }
