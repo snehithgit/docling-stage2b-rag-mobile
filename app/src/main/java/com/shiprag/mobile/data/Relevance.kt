@@ -42,7 +42,6 @@ object Relevance {
         // spelling while still refusing F1 vs F10 or AD136TI vs AD136T.
         val joined = evidence
             .replace(Regex("(?<=[a-z])[ \\t-]+(?=[0-9])"), "")
-            .replace(Regex("(?<=[0-9])[ \\t-]+(?=[a-z])"), "")
         return queryCodes.all { code ->
             val exact = Regex("(?<![a-z0-9._/-])" + Regex.escape(code) + "(?![a-z0-9._/-])")
             val normalized = code.replace("-", "")
