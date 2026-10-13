@@ -9,6 +9,8 @@ android {
         applicationId = "com.shiprag.mobile"
         minSdk = 26
         targetSdk = 35
+        // ShipRAG targets modern ARM64 Android phones; avoid packaging x86 ONNX libraries.
+        ndk { abiFilters.add("arm64-v8a") }
         // Newer GitHub runs always have higher version codes for Android's update checks.
         // On a local build, use a fixed value above every previous temporary debug build.
         val runNumber = System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1

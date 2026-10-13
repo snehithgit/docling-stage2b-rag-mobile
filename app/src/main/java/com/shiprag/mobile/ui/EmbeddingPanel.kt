@@ -23,7 +23,7 @@ fun EmbeddingPanel(model: OnDeviceEmbeddings, onInstalled: () -> Unit) {
     var status by remember { mutableStateOf(model.description()) }
     var problem by remember { mutableStateOf("") }
 
-    fun perform(operation: suspend () -> Unit) {
+    fun perform(successLabel: String? = null, operation: suspend () -> Unit) {
         if (working) return
         working = true
         problem = ""
@@ -31,7 +31,7 @@ fun EmbeddingPanel(model: OnDeviceEmbeddings, onInstalled: () -> Unit) {
             runCatching { withContext(Dispatchers.IO) { operation() } }
                 .onSuccess {
                     installed = model.available()
-                    status = model.description()
+                    status = successLabel ?: model.description()
                     if (installed) onInstalled()
                 }.onFailure { problem = it.message ?: "Model setup failed" }
             working = false
@@ -52,6 +52,16 @@ fun EmbeddingPanel(model: OnDeviceEmbeddings, onInstalled: () -> Unit) {
             style = MaterialTheme.typography.titleSmall)
         Text(status, style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (installed) {
+            OutlinedButton(onClick = {
+                perform("On-device inference test passed: 384-d embedding, no server.") {
+                    val vector = model.embed("Luffing winch hydraulic oil filling volume")
+                    require(vector.size == 384 && vector.any { it != 0f }) { "Invalid local model output" }
+                }
+            }, enabled = !working, modifier = Modifier.fillMaxWidth()) {
+                Text("Test on-device embedding (offline)")
+            }
+        }
         if (!installed) {
             Button(
                 onClick = {
