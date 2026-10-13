@@ -44,6 +44,8 @@ object MarineQuery {
     private val tableUnits = Regex("""(?i)\b\d+(?:[.,]\d+)?\s*(?:litres?|liters?|ltr|ltrs|l|gallons?|gal)\b""")
     private val oilGrade = Regex("""(?i)\b(?:polyglycol|synthetic|tivela|viscosity|cst|iso\s*vg|sae|vg\s*\d+|gear\s*oil|lubricant|lubricating\s*oil|oil\s*(?:type|grade|specification)|oil\s*shall|oil\s*must)\b""")
     private val slowTerms = Regex("""(?i)\b(?:slow|slower|sluggish|low[- ]speed|reduced\s+speed|insufficient\s+speed|speed\s+(?:too\s+)?low|speed\s+reduced|speed\s+loss|not\s+hoisting|does\s+not\s+(?:lift|hoist)|weak\s+hoist|speed\s+range)\b""")
+    private val actualSlowFault = Regex("""(?i)\b(?:slow|slower|sluggish|reduced\s+speed|insufficient\s+speed|speed\s+(?:too\s+)?low|speed\s+reduced|speed\s+loss|not\s+hoisting|weak\s+hoist)\b""")
+    private val faultSection = Regex("""(?i)\b(?:fault\s+finding|troubleshooting|failures?\s*[-:]\s*symptoms?|remed(?:y|ies)|malfunction|abnormal)\b""")
     private val faultEvidence = Regex("""(?i)\b(?:cause|remedy|fault|trouble|malfunction|check|inspect|test|measure|verify|replace|pressure|pump|valve|filter|flow|blockage|wear|leakage|leak|control\s+signal|servo|overload|stuck|faulty|defective|restriction|failure)\b""")
     private val gradeQuestion = Regex("""(?i)(?:\b(?:oil|lubricant)\b.{0,35}\b(?:type|grade|viscosity|specification|recommended|which|kind)\b|\b(?:type|grade|viscosity|which|what|kind|recommended)\b.{0,35}\b(?:oil|lubricant)\b)""")
     private val volumeQuestion = Regex("""(?i)(?:\b(?:how\s+much|amount|quantity|volume|capacity|litres?|liters?|fill|filling|top\s*up|refill)\b.{0,55}\b(?:oil|lubricant)\b|\b(?:oil|lubricant)\b.{0,35}\b(?:how\s+much|amount|quantity|volume|capacity|litres?|liters?|fill|filling|top\s*up|refill)\b)""")
@@ -158,8 +160,9 @@ object MarineQuery {
                 else -> -6.0
             }
             Intent.SlowOperation -> when {
-                slowTerms.containsMatchIn(text) && faultEvidence.containsMatchIn(text) -> 17.0
-                slowTerms.containsMatchIn(text) -> 7.0
+                actualSlowFault.containsMatchIn(text) && faultEvidence.containsMatchIn(text) -> 17.0
+                faultSection.containsMatchIn(text) && slowTerms.containsMatchIn(text) && faultEvidence.containsMatchIn(text) -> 10.0
+                slowTerms.containsMatchIn(text) -> -5.0 // Low-speed mode alone is not a malfunction.
                 else -> -3.0
             }
             Intent.Fault -> if (faultEvidence.containsMatchIn(text)) 9.0 else -3.0
@@ -178,7 +181,8 @@ object MarineQuery {
         return when (p.intent) {
             Intent.OilVolume -> tableUnits.containsMatchIn(text)
             Intent.OilGrade -> oilGrade.containsMatchIn(text)
-            Intent.SlowOperation -> slowTerms.containsMatchIn(text) && faultEvidence.containsMatchIn(text)
+            Intent.SlowOperation -> (actualSlowFault.containsMatchIn(text) ||
+                (faultSection.containsMatchIn(text) && slowTerms.containsMatchIn(text))) && faultEvidence.containsMatchIn(text)
             Intent.Fault -> faultEvidence.containsMatchIn(text)
             Intent.Procedure -> Regex("""(?i)\b(?:check|inspect|verify|remove|replace|disconnect|adjust|fill|drain|measure|switch\s+off)\b""").containsMatchIn(text)
             else -> true
