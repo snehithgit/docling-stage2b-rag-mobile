@@ -105,8 +105,10 @@ object MarineQuery {
         return Profile(intent, subject, (basics + expansion + morphology).distinct().take(28), hasEquipment)
     }
 
+    fun evidenceTokens(text: String): List<String> = tokens(text.replace("luffi ng", "luffing").replace("luffi  ng", "luffing")).map(::canonical)
+
     private fun normalizedEvidence(body: String, heading: String): List<String> =
-        tokens(body + " " + heading).map(::canonical)
+        evidenceTokens(body + " " + heading)
 
     /** Source-content-only matching: a filename is context, not answer proof. */
     fun subjectRatio(p: Profile, body: String, heading: String): Double {
