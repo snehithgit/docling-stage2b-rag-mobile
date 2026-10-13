@@ -65,7 +65,8 @@ class RelevanceTest {
         val steps = Relevance.Candidate("To replace the pump, disconnect the supply and remove the mounting bolts.",
             "Pump replacement", "Instruction Manual.pdf")
         assertFalse(Relevance.strongEnoughForAnswer("How to replace pump motor?", description))
-        assertTrue(Relevance.strongEnoughForAnswer("How to replace pump motor?", steps))
+        assertFalse(Relevance.strongEnoughForAnswer("How to replace pump motor?", steps))
+        assertTrue(Relevance.strongEnoughForAnswer("How to replace pump?", steps))
     }
 
     @Test fun singleGenericKeywordCannotGenerateAnAnswer() {
