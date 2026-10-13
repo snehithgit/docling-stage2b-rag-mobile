@@ -99,9 +99,13 @@ object LocalModels {
 
     fun answer(settings: AppSettings, question: String, sources: List<Source>): Generated {
         require(sources.isNotEmpty()) { "No retrieved sources; cannot generate a grounded answer." }
-        val bounded = sources.filter { Relevance.strongEnoughForAnswer(
-            question, Relevance.Candidate(it.content, it.headings.joinToString(" > "), it.manual)
-        ) }.take(settings.answerSources.coerceIn(1, 8))
+        val kind = MarineQuery.profile(question).intent
+        val numericOil = kind == MarineQuery.Intent.OilGrade || kind == MarineQuery.Intent.OilVolume
+        val bounded = sources.filter { row ->
+            (!numericOil || row.evidenceKind != "visual") &&
+                Relevance.strongEnoughForAnswer(
+                    question, Relevance.Candidate(row.content, row.headings.joinToString(" > "), row.manual))
+        }.take(settings.answerSources.coerceIn(1, 8))
         require(bounded.isNotEmpty()) {
             "No sufficiently relevant cited excerpts for this question. Choose the correct manual or add equipment identifiers. No answer was fabricated."
         }
