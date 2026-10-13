@@ -199,8 +199,16 @@ object Relevance {
         val hits = coverage(terms, candidate.body, candidate.heading)
         val profile = MarineQuery.profile(question)
         if (!MarineQuery.answerEvidence(profile, candidate.body, candidate.heading)) return false
-        return sufficient(terms, candidate.body, candidate.heading) &&
-            hits >= (if (terms.size >= 4) 0.75 else if (terms.size == 3) 2.0 / 3.0 else if (terms.size == 2) 0.999 else 1.0) &&
-            exactCodeMatch(equipmentCodes(question), candidate.body + " " + candidate.heading, candidate.manual) && hasAnswerStructure(question, candidate.body, candidate.heading)
+        val required = if (terms.size >= 4) 0.75 else if (terms.size == 3) 2.0 / 3.0 else if (terms.size == 2) 0.999 else 1.0
+        val literalSupport = sufficient(terms, candidate.body, candidate.heading) && hits >= required
+        // An identified winch with "speed too low" answers a "hoisting is slow"
+        // question even though the words slow and low differ. The equipment
+        // match and required evidence form are still mandatory.
+        val technicalParaphrase = profile.hasEquipment &&
+            profile.intent in setOf(MarineQuery.Intent.SlowOperation, MarineQuery.Intent.OilGrade, MarineQuery.Intent.OilVolume) &&
+            MarineQuery.subjectRatio(profile, candidate.body, candidate.heading) >= 0.99
+        return (literalSupport || technicalParaphrase) &&
+            exactCodeMatch(equipmentCodes(question), candidate.body + " " + candidate.heading, candidate.manual) &&
+            hasAnswerStructure(question, candidate.body, candidate.heading)
     }
 }
