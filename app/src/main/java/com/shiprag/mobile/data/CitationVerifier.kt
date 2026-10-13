@@ -16,7 +16,21 @@ object CitationVerifier {
             .replace("volts", "v").replace("volt", "v")
     }
 
-    fun warnings(answer: String, sources: List<Source>): List<String> {
+    private val equipment = Regex("""(?i)\b(?:luffing\s+winch|hoisting\s+winch|slewing\s+gear|oil\s+tank)\b""")
+    /** Preserve equipment/value association in compact oil-filling tables. */
+    private fun valuesNearEquipment(evidence: String, name: String): Set<String> {
+        val markers = equipment.findAll(evidence).toList()
+        val found = linkedSetOf<String>()
+        for ((i, marker) in markers.withIndex()) {
+            if (!marker.value.equals(name, ignoreCase = true)) continue
+            val end = if (i+1 < markers.size) markers[i+1].range.first else evidence.length
+            val segment = evidence.substring(marker.range.first, end.coerceAtMost(marker.range.first+160))
+            for (m in measurement.findAll(segment)) found.add(canonical(m.value))
+        }
+        return found
+    }
+
+    fun warnings(answer: String, sources: List<Source>, question: String = ""): List<String> {
         val problems = linkedSetOf<String>()
         val segments = answer.lines().flatMap {
             it.split(Regex("""(?<=[.!?])\s+(?=[A-Z])"""))
@@ -41,6 +55,12 @@ object CitationVerifier {
             }.toSet()
             if (values.any { it !in literals }) {
                 problems += "At least one stated technical quantity/unit is absent from its cited source."
+            } else {
+                val requested = equipment.find(segment)?.value ?: equipment.find(question)?.value
+                if (requested != null && cited.any { it.evidenceKind != "visual" } &&
+                    cited.none { src -> values.all { it in valuesNearEquipment(src.content, requested) } }) {
+                    problems += "The quantity occurs in the source, but not with the requested equipment."
+                }
             }
         }
         return problems.toList()
