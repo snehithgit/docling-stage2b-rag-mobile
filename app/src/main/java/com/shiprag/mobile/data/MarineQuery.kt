@@ -173,7 +173,8 @@ object MarineQuery {
     /** A quantity request needs a real quantity; oil grade needs lubricant evidence. */
     fun answerEvidence(p: Profile, body: String, heading: String): Boolean {
         val text = body + " " + heading
-        if (p.subject.isNotEmpty() && subjectRatio(p, body, heading) < (if (p.subject.size > 2) 0.66 else 0.99)) return false
+        val requiredRatio = if (p.subject.size > 2) 0.66 else 0.99
+        if (p.subject.isNotEmpty() && subjectRatio(p, body, heading) < requiredRatio) return false
         return when (p.intent) {
             Intent.OilVolume -> tableUnits.containsMatchIn(text)
             Intent.OilGrade -> oilGrade.containsMatchIn(text)
