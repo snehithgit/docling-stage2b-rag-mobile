@@ -50,6 +50,9 @@ class MarineQueryTest {
         assertTrue(MarineQuery.answerEvidence(p,checks.body,checks.heading))
         assertTrue(Relevance.strongEnoughForAnswer("hoisting is slow what to check",checks))
         assertFalse(MarineQuery.answerEvidence(p,speed.body,speed.heading))
+        assertFalse(MarineQuery.answerEvidence(p,
+            "Low-speed range brake release; the control lever actuates valve 1221 and brake valve 1226.",
+            "Normal low-speed operation"))
     }
 
     @Test fun genericOilAmountWithoutEquipmentIsNotEnoughToCite() {
