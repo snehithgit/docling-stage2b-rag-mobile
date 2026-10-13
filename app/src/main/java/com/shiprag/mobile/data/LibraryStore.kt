@@ -30,6 +30,7 @@ class LibraryStore(private val context: Context) {
         chatModel = prefs.getString("chatModel", null) ?: "local",
         embeddingUrl = prefs.getString("embeddingUrl", null) ?: AppSettings().embeddingUrl,
         embeddingModel = prefs.getString("embeddingModel", null) ?: "",
+        embeddingSource = prefs.getString("embeddingSource", null) ?: "device",
         queryPrefix = prefs.getString("queryPrefix", null) ?: "",
         answerSources = prefs.getInt("answerSources", 5),
         chatApiKey = secrets.get("chat"),
@@ -38,7 +39,7 @@ class LibraryStore(private val context: Context) {
     fun saveSettings(s: AppSettings) { prefs.edit()
         .putString("chatUrl", s.chatUrl).putString("chatModel", s.chatModel)
         .putString("embeddingUrl", s.embeddingUrl).putString("embeddingModel", s.embeddingModel)
-        .putString("queryPrefix", s.queryPrefix).putInt("answerSources", s.answerSources).apply()
+        .putString("queryPrefix", s.queryPrefix).putString("embeddingSource", s.embeddingSource).putInt("answerSources", s.answerSources).apply()
         secrets.put("chat", s.chatApiKey)
         secrets.put("embeddings", s.embeddingApiKey)
     }

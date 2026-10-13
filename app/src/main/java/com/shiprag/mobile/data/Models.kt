@@ -28,6 +28,7 @@ data class AppSettings(
     val chatModel: String = "local",
     val embeddingUrl: String = "http://127.0.0.1:8090/embed",
     val embeddingModel: String = "",
+    val embeddingSource: String = "device",
     val queryPrefix: String = "",
     val answerSources: Int = 5,
     val chatApiKey: String = "",

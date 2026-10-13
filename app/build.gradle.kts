@@ -50,6 +50,7 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended-android:1.7.8")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.0")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
 }
