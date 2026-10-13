@@ -134,7 +134,7 @@ If sources conflict, describe the discrepancy. Never invent citations or supplem
         require(answer.isNotBlank()) { "Model returned no answer" }
         val refs = Regex("\\[S(\\d+)]", RegexOption.IGNORE_CASE).findAll(answer).map { it.groupValues[1].toInt() }.toList()
         val insufficient = answer.contains("Not enough information in the retrieved sources", true)
-        val quantityWarnings = CitationVerifier.warnings(answer, bounded)
+        val quantityWarnings = CitationVerifier.warnings(answer, bounded, question)
         val warning = when {
             quantityWarnings.isNotEmpty() -> "UNVERIFIED QUANTITY: " + quantityWarnings.joinToString(" ")
             refs.any { it !in 1..bounded.size } -> "Invalid source label in answer. Verify all claims against the original pages."
