@@ -21,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -75,6 +76,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun ShipRagApp(store: LibraryStore) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val offlineEmbed = remember { OnDeviceEmbeddings(context.applicationContext) }
     val askSession = remember { AskSession() }
     val askListState = rememberLazyListState()
     var tab by remember { mutableStateOf(Tab.Library) }
@@ -162,8 +165,8 @@ private fun ShipRagApp(store: LibraryStore) {
                 when (tab) {
                     Tab.Library -> LibraryPage(report, inventory, manuals, importing, progress, openZip)
                     Tab.Ask -> AskPage(store, manuals, session = askSession, listState = askListState, scope = scope,
-                        resolver = linksResolver, onOpen = openSource, onConfigure = { tab = Tab.Settings }, onImport = openZip)
-                    Tab.Settings -> SettingsPage(store, report?.embeddedModels ?: emptyList()) { message = it }
+                        resolver = linksResolver, offlineEmbed = offlineEmbed, onOpen = openSource, onConfigure = { tab = Tab.Settings }, onImport = openZip)
+                    Tab.Settings -> SettingsPage(store, offlineEmbed, report?.embeddedModels ?: emptyList()) { message = it }
                 }
             }
         }
@@ -237,7 +240,7 @@ private fun LibraryPage(report: ImportReport?, inventory: Map<String, Int>, manu
 
 @Composable
 private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSession, listState: LazyListState,
-                    scope: CoroutineScope, resolver: ManualReferenceResolver, onOpen: (Source) -> Unit,
+                    scope: CoroutineScope, resolver: ManualReferenceResolver, offlineEmbed: OnDeviceEmbeddings, onOpen: (Source) -> Unit,
                     onConfigure: () -> Unit, onImport: () -> Unit) {
     var query by session.query
     var selectedManual by session.selectedManual
@@ -262,9 +265,20 @@ private fun AskPage(store: LibraryStore, manuals: List<String>, session: AskSess
                 val engine = Retriever(store)
                 if (hybrid) {
                     val settings = store.settings()
-                    require(settings.embeddingModel.isNotBlank()) { "Select an indexed embedding model under Models." }
-                    val vector = LocalModels.embed(settings, query)
-                    engine.hybrid(query, settings.embeddingModel, vector, selectedManual)
+                    val indexed = store.vectorModels()
+                    val model = settings.embeddingModel.ifBlank {
+                        if (indexed.size == 1) indexed.first() else ""
+                    }
+                    require(model.isNotBlank() && model in indexed) {
+                        "Select an indexed embedding model under Models."
+                    }
+                    val vector = if (settings.embeddingSource == "device") {
+                        require(model == OnDeviceEmbeddings.MODEL_ID) {
+                            "On-device BGE only works with BAAI/bge-small-en-v1.5."
+                        }
+                        offlineEmbed.embed(settings.queryPrefix + query)
+                    } else LocalModels.embed(settings.copy(embeddingModel = model), query)
+                    engine.hybrid(query, model, vector, selectedManual)
                 } else engine.search(query, selectedManual)
             } }.onSuccess { results = it }
                 .onFailure { error = it.message ?: "Search failed" }
@@ -421,7 +435,8 @@ private fun AnswerCard(answer: Generated, sources: List<Source>, onOpen: (Source
 }
 
 @Composable
-private fun SettingsPage(store: LibraryStore, indexedModels: List<String>, onMessage: (String)->Unit) {
+private fun SettingsPage(store: LibraryStore, offlineEmbed: OnDeviceEmbeddings,
+                         indexedModels: List<String>, onMessage: (String)->Unit) {
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.settings()) }
     var discovered by remember { mutableStateOf<List<String>>(emptyList()) }
