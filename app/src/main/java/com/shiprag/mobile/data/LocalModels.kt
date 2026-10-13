@@ -101,7 +101,7 @@ object LocalModels {
         require(sources.isNotEmpty()) { "No retrieved sources; cannot generate a grounded answer." }
         val bounded = sources.filter { Relevance.strongEnoughForAnswer(
             question, Relevance.Candidate(it.content, it.headings.joinToString(" > "), it.manual)
-        ) }.sortedByDescending { it.score }.take(settings.answerSources.coerceIn(1, 8))
+        ) }.take(settings.answerSources.coerceIn(1, 8))
         require(bounded.isNotEmpty()) {
             "No sufficiently relevant cited excerpts for this question. Choose the correct manual or add equipment identifiers. No answer was fabricated."
         }
