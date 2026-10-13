@@ -28,6 +28,16 @@ class CitationVerifierTest {
             listOf(src("Luffing winch 6.5 liters"))).isNotEmpty())
     }
 
+    @Test fun hoistingVolumeMustNotBeAssignedToLuffingWinch() {
+        val table = src("OIL VOLUME / OIL FILLING per unit. Hoisting winch 13.0 liters. Luffing winch 6.5 liters.")
+        assertTrue(CitationVerifier.warnings(
+            "Fill with 13.0 liters [S1].",
+            listOf(table), "How much oil to fill in the luffing winch?").isNotEmpty())
+        assertTrue(CitationVerifier.warnings(
+            "Fill with 6.5 liters [S1].",
+            listOf(table), "How much oil to fill in the luffing winch?").isEmpty())
+    }
+
     @Test fun visualSummaryCannotVerifyExactOilQuantity() {
         assertTrue(CitationVerifier.warnings(
             "The oil volume is 6.5 litres [S1].",
