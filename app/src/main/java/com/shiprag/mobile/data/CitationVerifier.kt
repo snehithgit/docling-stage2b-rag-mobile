@@ -56,7 +56,8 @@ object CitationVerifier {
             if (values.any { it !in literals }) {
                 problems += "At least one stated technical quantity/unit is absent from its cited source."
             } else {
-                val requested = equipment.find(segment)?.value ?: equipment.find(question)?.value
+                val requested = if (MarineQuery.profile(question).intent == MarineQuery.Intent.OilVolume)
+                    (equipment.find(segment)?.value ?: equipment.find(question)?.value) else null
                 if (requested != null && cited.any { it.evidenceKind != "visual" } &&
                     cited.none { src -> values.all { it in valuesNearEquipment(src.content, requested) } }) {
                     problems += "The quantity occurs in the source, but not with the requested equipment."
