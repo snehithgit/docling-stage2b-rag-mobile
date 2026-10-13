@@ -27,8 +27,15 @@ object Relevance {
         .map { it.value }.toList()
 
     fun queryTerms(query: String): List<String> {
-        val distinct = tokens(query).filterNot { it in stopWords }.distinct()
-        return distinct.take(14)
+        val profile = MarineQuery.profile(query)
+        val core = when (profile.intent) {
+            MarineQuery.Intent.OilGrade, MarineQuery.Intent.OilVolume ->
+                profile.subject + "oil"
+            MarineQuery.Intent.SlowOperation ->
+                profile.subject + "slow"
+            else -> tokens(query).filterNot { it in stopWords }.map(MarineQuery::canonical)
+        }
+        return core.distinct().take(14)
     }
     fun equipmentCodes(query: String): List<String> = idRx.findAll(query)
         .map { it.value.lowercase(Locale.ROOT) }.filter { code ->
@@ -53,13 +60,13 @@ object Relevance {
     /** Main evidence match uses actual text and heading, not document-name alone. */
     fun coverage(terms: List<String>, body: String, heading: String): Double {
         if (terms.isEmpty()) return 0.0
-        val present = (tokens(body) + tokens(heading)).toHashSet()
+        val present = (MarineQuery.evidenceTokens(body) + MarineQuery.evidenceTokens(heading)).toHashSet()
         return terms.count { it in present }.toDouble() / terms.size
     }
 
     fun sufficient(terms: List<String>, body: String, heading: String): Boolean {
         if (terms.isEmpty()) return false
-        val present = (tokens(body) + tokens(heading)).toHashSet()
+        val present = (MarineQuery.evidenceTokens(body) + MarineQuery.evidenceTokens(heading)).toHashSet()
         val hits = terms.count { it in present }
         return when {
             terms.size <= 2 -> hits >= 1
@@ -127,8 +134,9 @@ object Relevance {
         val terms = queryTerms(question)
         if (terms.isEmpty() || candidates.isEmpty()) return emptyList()
         val codes = equipmentCodes(question)
-        val bodyTokens = candidates.map { tokens(it.body).take(1500) }
-        val headTokens = candidates.map { tokens(it.heading).take(160) }
+        val profile = MarineQuery.profile(question)
+        val bodyTokens = candidates.map { MarineQuery.evidenceTokens(it.body).take(1500) }
+        val headTokens = candidates.map { MarineQuery.evidenceTokens(it.heading).take(160) }
         val docs = bodyTokens.indices.map { i -> bodyTokens[i] + headTokens[i] }
         val averageLength = docs.map { it.size }.average().coerceAtLeast(1.0)
         val freq = terms.associateWith { term -> docs.count { term in it } }
@@ -177,6 +185,8 @@ object Relevance {
             val redirects = listOf("refer to section", "see section", "refer to chapter", "see chapter")
             if (redirects.any { it in lower }) score *= 0.67
             score *= intentFit(question, c.body, c.heading)
+            score += MarineQuery.cohesionBonus(profile, c.body, c.heading)
+            score += MarineQuery.intentBonus(profile, c.body, c.heading)
             if (score.isFinite() && score > 0.0) result.add(i to score)
         }
         return result.sortedWith(compareByDescending<Pair<Int, Double>> { it.second }.thenBy { it.first })
@@ -187,6 +197,8 @@ object Relevance {
         // A lone generic keyword such as "oil" is search input, not enough evidence for a factual answer.
         if (terms.size == 1 && equipmentCodes(question).isEmpty()) return false
         val hits = coverage(terms, candidate.body, candidate.heading)
+        val profile = MarineQuery.profile(question)
+        if (!MarineQuery.answerEvidence(profile, candidate.body, candidate.heading)) return false
         return sufficient(terms, candidate.body, candidate.heading) &&
             hits >= (if (terms.size >= 4) 0.75 else if (terms.size == 3) 2.0 / 3.0 else if (terms.size == 2) 0.999 else 1.0) &&
             exactCodeMatch(equipmentCodes(question), candidate.body + " " + candidate.heading, candidate.manual) && hasAnswerStructure(question, candidate.body, candidate.heading)
