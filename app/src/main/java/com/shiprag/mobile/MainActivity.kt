@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.shiprag.mobile.data.*
 import com.shiprag.mobile.ui.SourceScreen
 import com.shiprag.mobile.ui.ReferenceRoutes
+import com.shiprag.mobile.ui.EmbeddingPanel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -484,13 +485,29 @@ private fun SettingsPage(store: LibraryStore, offlineEmbed: OnDeviceEmbeddings,
         }
         HorizontalDivider()
         Text("Optional semantic retrieval", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Text("Lexical search always works offline. To enable hybrid search, the query embedding provider MUST use the same embedding model and prefix as the imported vectors.",
+        Text("BGE-small-en-v1.5 384-d is already indexed in your manual backup. On-device embeddings calculate the QUESTION vector locally, without a server or rebuilding the manual vectors.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(selected = settings.embeddingSource == "device",
+                onClick = { settings = settings.copy(embeddingSource = "device") },
+                label = { Text("On-device") })
+            FilterChip(selected = settings.embeddingSource == "server",
+                onClick = { settings = settings.copy(embeddingSource = "server") },
+                label = { Text("External API") })
+        }
+        if (settings.embeddingSource == "device") {
+            EmbeddingPanel(offlineEmbed) {
+                settings = settings.copy(embeddingModel = OnDeviceEmbeddings.MODEL_ID)
+                store.saveSettings(settings)
+                onMessage("BGE installed. Hybrid retrieval can now work fully offline.")
+            }
+        } else {
         OutlinedTextField(settings.embeddingUrl, { settings = settings.copy(embeddingUrl = it) }, modifier = Modifier.fillMaxWidth(),
             label = { Text("Embedding URL") }, singleLine = true,
             supportingText = { Text("Existing Docling service: http://127.0.0.1:8090/embed; or OpenAI /v1/embeddings") })
         OutlinedTextField(settings.embeddingApiKey, { settings = settings.copy(embeddingApiKey = it) }, modifier = Modifier.fillMaxWidth(),
             label = { Text("Embedding API key (optional)") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+        }
         OutlinedTextField(settings.embeddingModel, { settings = settings.copy(embeddingModel = it) }, modifier = Modifier.fillMaxWidth(),
             label = { Text("Indexed embedding model") }, singleLine = true)
         if (indexedModels.isNotEmpty()) {
