@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 /** Relevance-first lexical / hybrid ranking. No network needed for lexical mode. */
 class Retriever(private val library: LibraryStore) {
     fun lexical(question: String, manual: String? = null, take: Int = 60, evidenceKind: String? = null): List<Source> {
-        val words = Relevance.queryTerms(question).flatMap {
+        val words = MarineQuery.profile(question).retrieval.flatMap {
             it.split(Regex("[^\\p{L}\\p{N}]+")).filter(String::isNotBlank)
         }.distinct().take(28)
         if (words.isEmpty()) return emptyList()
