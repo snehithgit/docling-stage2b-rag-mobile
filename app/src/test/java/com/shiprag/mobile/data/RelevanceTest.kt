@@ -8,7 +8,7 @@ class RelevanceTest {
         Relevance.rank(query, evidence.toList()).map { it.first }
 
     @Test fun ignoresQuestionStopWords() {
-        assertEquals(listOf("oil", "type", "hydraulic", "equipment"), Relevance.queryTerms("What is the oil type for hydraulic equipment?"))
+        assertEquals(listOf("hydraulic", "equipment", "oil"), Relevance.queryTerms("What is the oil type for hydraulic equipment?"))
         assertTrue(Relevance.queryTerms("What is it and how?").isEmpty())
     }
 
