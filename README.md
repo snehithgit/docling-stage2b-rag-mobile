@@ -1,6 +1,8 @@
+> **Android app upgrades:** A different signing key on each GitHub Actions runner caused the old APKs to require uninstall/reinstall. This project now pins one permanent signing certificate. After the one-time signing-secret setup and one final migration from the old temporary-signed APK, every later permanently signed APK upgrades in place, retaining the original app's private manuals, indexes and model settings. The signing private key is encrypted in git; its passphrase must be kept as a GitHub Actions secret.
+
 # ShipRAG Android — source-first offline library
 
-**Status:** Android Studio **source project**, not a compiled APK. The ZIP importer, local retrieval, model client, and evidence viewer have been implemented, but the Android binary has **not** been built or smoke-tested in this environment (Android SDK/Gradle are not available here). Build/debug on Android Studio or run the GitHub Actions workflow supplied below before shipboard use.
+**Status:** Offline-first Android app, compiled and tested using GitHub Actions. For installable update builds, configure the permanent signing secret once. See [signing/README.md](signing/README.md).
 
 Designed against the current `snehithgit/docling-stage2b` retrieval artifacts, not as a port of its conversion/review pipeline. It leaves the original Python application and all original data untouched.
 
@@ -52,11 +54,11 @@ If the archived content comes from the Docker volume where `/data` contains `pro
 
 ## Build
 
-Minimum Android version: 8.0 (API 26). Target API 35 (Android 15). Jetpack Compose Material 3 UI, AGP 9.2.0, Gradle 9.4.1, compile SDK 37, Java 17, Kotlin Compose plugin 2.4.10. Dependency versions should be checked against the installed Android Studio version.
+Minimum Android version: 8.0 (API 26). Target API 35 (Android 15). Jetpack Compose Material 3 UI, AGP 9.2.0, Gradle 9.4.1, compile SDK 36, Java 17, Kotlin Compose plugin 2.4.10. Dependency versions should be checked against the installed Android Studio version.
 
-1. Open this folder as an Android Studio project and let it download Gradle and SDK 37. Or push the folder as the root of a GitHub repo to run the included `.github/workflows/android-debug.yml` workflow.
-2. Build > Build Bundle(s) / APK(s) > Build APK(s), or run `gradle :app:assembleDebug` with **Gradle 9.4.1** after installing Android SDK 37.
-3. Install `app/build/outputs/apk/debug/app-debug.apk` on your Android phone.
+1. Open this folder as an Android Studio project with SDK 36, or use the GitHub Actions build workflow. **Installable upgrade APKs from GitHub require the one-time `SHIPRAG_SIGNING_PASSPHRASE` Actions secret** as described in [signing/README.md](signing/README.md). Without it, CI tests pass but intentionally do not publish another incompatible debug APK.
+2. Build > Build Bundle(s) / APK(s) > Build APK(s), or run `gradle :app:assembleDebug` with **Gradle 9.4.1** after installing Android SDK 36.
+3. Install the artifact named **ShipRAG-Android-permanently-signed-APK**. Every later signed build has the same signing certificate and a higher version code, so install it over the existing version without uninstalling or reimporting your ZIP.
 4. Select your full backup ZIP with the Android document picker. Importing copies the expanded files into private app storage; free internal storage must accommodate both the existing ZIP and extracted data.
 
 The included `scripts/generate_fixture.py` creates a tiny, **synthetic** RAG archive for checking the importer and source viewer; it is not a real ship manual. A sample can be generated with `python scripts/generate_fixture.py /path/to/test.zip` (requires only Python stdlib).
@@ -81,3 +83,6 @@ The included `scripts/generate_fixture.py` creates a tiny, **synthetic** RAG arc
 - `app/rag_generation.py`: source-labeled and strict grounded answer policy.
 
 No original repository file or ship-manual data is included in this source distribution.
+## Preserve existing install across the one-time signing migration
+
+Android forbids a direct upgrade from earlier GitHub-runner-signed builds with a different signing certificate. You can reimport your original ZIP once; after that, all stable-signed upgrades retain the library and settings. Optionally, advanced users with a computer and Android USB debugging can run `bash scripts/migrate-old-debug-install.sh /path/to/permanently-signed.apk` to back up and restore app-private library data during that one-time reinstall, without phone root. Keep its verified backup offline; encrypted API keys may need re-entering because uninstall clears Android Keystore keys. This migration path has not been tested on your phone; always keep the original ZIP as independent backup.
