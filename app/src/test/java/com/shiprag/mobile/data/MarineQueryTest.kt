@@ -48,6 +48,7 @@ class MarineQueryTest {
         assertEquals(MarineQuery.Intent.SlowOperation,p.intent)
         assertEquals(1,best("hoisting is slow what to check",listOf(speed,checks)))
         assertTrue(MarineQuery.answerEvidence(p,checks.body,checks.heading))
+        assertTrue(Relevance.strongEnoughForAnswer("hoisting is slow what to check",checks))
         assertFalse(MarineQuery.answerEvidence(p,speed.body,speed.heading))
     }
 
